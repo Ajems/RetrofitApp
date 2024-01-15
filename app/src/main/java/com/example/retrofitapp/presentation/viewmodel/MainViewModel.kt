@@ -10,15 +10,21 @@ import com.example.retrofitapp.domain.useCases.GetProductInfoUseCase
 import androidx.lifecycle.viewModelScope
 import com.example.retrofitapp.data.retrofit.pojo.Product
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 class MainViewModel(application: Application): AndroidViewModel(application) {
-    val retrofit = Retrofit.Builder()
+    private val interceptor = createInterceptor(HttpLoggingInterceptor.Level.BODY)
+    private val client = createClient(interceptor)
+
+    private val retrofit = Retrofit.Builder()
         .baseUrl("https://dummyjson.com")
+        .client(client)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
-    val productApi = retrofit.create(ProductApi::class.java)
+    private val productApi = retrofit.create(ProductApi::class.java)
 
     private val getProductInfoUseCase = GetProductInfoUseCase(productApi)
 
@@ -27,11 +33,12 @@ class MainViewModel(application: Application): AndroidViewModel(application) {
         get() = _productList
 
     private var loadedProducts = 0
-    private var step = 10
+    private var step = 3
 
     fun loadProduct() {
         viewModelScope.launch {
             for (id in loadedProducts + 1..loadedProducts + step) {
+                loadedProducts++
                 val product = getProductInfoUseCase(id)
                 Log.d(PRODUCT_LOAD_TAG, product.toString())
 
@@ -40,8 +47,19 @@ class MainViewModel(application: Application): AndroidViewModel(application) {
 
                 _productList.postValue(currentList)
             }
-            loadedProducts += step
         }
+    }
+
+    private fun createInterceptor(level: HttpLoggingInterceptor.Level): HttpLoggingInterceptor {
+        val interceptor = HttpLoggingInterceptor()
+        interceptor.level = level
+        return interceptor
+    }
+
+    private fun createClient(interceptor: HttpLoggingInterceptor): OkHttpClient {
+        return OkHttpClient.Builder()
+            .addInterceptor(interceptor)
+            .build()
     }
 
     companion object {
